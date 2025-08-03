@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BikeHawk Search</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #f7f7f7;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+    }
+
+    form label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+
+    #pinkbikeResults {
+      margin-top: 2rem;
+    }
+
+    #pinkbikeContent div {
+      background-color: white;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border-left: 5px solid crimson;
+    }
+
+    .error {
+      color: crimson;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 BikeHawk: Multi-Site Bike Parts Search</h1>
+
+  <form id="searchForm">
+    <label for="category">Choose Part Category:</label>
+    <select name="category" id="category" required>
+      <option value="9">Trail Frames</option>
+      <option value="10">Enduro Frames</option>
+      <option value="11">Downhill Frames</option>
+      <option value="12">Dirt Jump Frames</option>
+      <option value="13">Vintage Frames</option>
+      <option value="14">Single Crown Forks</option>
+      <option value="16">Rear Shocks</option>
+      <option value="22">Brakes</option>
+      <option value="24">Tires</option>
+      <option value="26">Wheels</option>
+    </select><br><br>
+
+    <label for="brandModel">Brand/Model (optional):</label>
+    <input type="text" id="brandModel" name="brandModel" placeholder="e.g., Trek or Shimano"><br><br>
+
+    <button type="submit">Search Listings</button>
+  </form>
+
+  <hr>
+
+  <div id="pinkbikeResults">
+    <h2>🔴 Pinkbike Listings</h2>
+    <div id="pinkbikeContent">No listings yet.</div>
+  </div>
+
+  <script>
+    document.getElementById('searchForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const form = new FormData(this);
+      const category = form.get('category');
+      const brandModel = form.get('brandModel').toLowerCase().trim();
+
+      const rssUrl = `https://www.pinkbike.com/buysell/rss/?category=${category}`;
+      const proxyUrl = `https://corsproxy.io/?${rssUrl}`;
+
+      const resultsContainer = document.getElementById('pinkbikeContent');
+      resultsContainer.innerHTML = `<p>Searching Pinkbike listings...</p>`;
+
+      try {
+        const response = await fetch(proxyUrl);
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, "text/xml");
+        const items = Array.from(xml.querySelectorAll("item"));
+
+        if (items.length === 0) {
+          resultsContainer.innerHTML = `<p>No listings found.</p>`;
+          return;
+        }
+
+        const filtered = items.filter(item => {
+          if (!brandModel) return true;
+          const title = item.querySelector("title")?.textContent.toLowerCase() || "";
+          const description = item.querySelector("description")?.textContent.toLowerCase() || "";
+          return title.includes(brandModel) || description.includes(brandModel);
+        });
+
+        if (filtered.length === 0) {
+          resultsContainer.innerHTML = `<p>No listings matched "${brandModel}".</p>`;
+          return;
+        }
+
+        resultsContainer.innerHTML = filtered.map(item => {
+          const title = item.querySelector("title")?.textContent || "No title";
+          const link = item.querySelector("link")?.textContent || "#";
+          const description = item.querySelector("description")?.textContent || "";
+          const pubDate = new Date(item.querySelector("pubDate")?.textContent).toLocaleDateString();
+
+          return `
+            <div>
+              <a href="${link}" target="_blank"><strong>${title}</strong></a><br>
+              <small>${pubDate}</small><br>
+              ${description}
+            </div>
+          `;
+        }).join('');
+      } catch (error) {
+        resultsContainer.innerHTML = `<p class="error">⚠️ Error loading listings. Try again later.</p>`;
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>
